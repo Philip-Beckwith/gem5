@@ -34,14 +34,14 @@
  * The victim is chosen using the last touch timestamp.
  */
 
-#ifndef __MEM_CACHE_REPLACEMENT_POLICIES_LRU_RP_HH__
-#define __MEM_CACHE_REPLACEMENT_POLICIES_LRU_RP_HH__
+#ifndef __MEM_CACHE_REPLACEMENT_POLICIES_LRU_IPV_HH__
+#define __MEM_CACHE_REPLACEMENT_POLICIES_LRU_IPV_HH__
 
 #include "mem/cache/replacement_policies/base.hh"
 
-struct LRURPParams;
+struct LRUIPVParams;
 
-class LRURP : public BaseReplacementPolicy
+class LRUIPV : public BaseReplacementPolicy
 {
   protected:
     /** LRU-specific implementation of replacement data. */
@@ -50,25 +50,30 @@ class LRURP : public BaseReplacementPolicy
         /** Tick on which the entry was last touched. */
         Tick lastTouchTick;
 
+        int index;
+
         /**
          * Default constructor. Invalidate data.
          */
-        LRUReplData() : lastTouchTick(0) {}
+        LRUReplData() : lastTouchTick(0) {index = 13;}
     };
+
+    static final int[] IPV = {0, 0, 1, 0, 3, 0, 1, 2, 1, 0, 5, 1, 0, 0, 1, 11, 13};
+    std::vector<LRUReplData*> cacheBlocks;
 
   public:
     /** Convenience typedef. */
-    typedef LRURPParams Params;
+    typedef LRUIPVParams Params;
 
     /**
      * Construct and initiliaze this replacement policy.
      */
-    LRURP(const Params *p);
+    LRUIPV(const Params *p);
 
     /**
      * Destructor.
      */
-    ~LRURP() {}
+    ~LRUIPV() {}
 
     /**
      * Invalidate replacement data to set it as the next probable victim.

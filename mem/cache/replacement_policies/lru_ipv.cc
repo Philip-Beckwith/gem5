@@ -28,81 +28,126 @@
  * Authors: Daniel Carvalho
  */
 
-#include "mem/cache/replacement_policies/lru_rp.hh"
+#include "mem/cache/replacement_policies/lru_ipv.hh"
 
 #include <cassert>
 #include <memory>
+#include <vector>
 
-#include "params/LRURP.hh"
+#include "params/LRUIPV.hh"
 #include "debug/LRUDEBUG.hh"
 
-LRURP::LRURP(const Params *p)
+LRUIPV::LRUIPV(const Params *p)
     : BaseReplacementPolicy(p)
 {
 }
 
 void
-LRURP::invalidate(const std::shared_ptr<ReplacementData>& replacement_data)
+LRUIPV::invalidate(const std::shared_ptr<ReplacementData>& replacement_data)
 const
 {
-	 DPRINTF(LRUDEBUG, "Inside Invalidate\n");
-    // Reset last touch timestamp
-    std::static_pointer_cast<LRUReplData>(
-        replacement_data)->lastTouchTick = Tick(0);
-    	 DPRINTF(LRUDEBUG, "Exiting Invalidate\n");
+	DPRINTF(LRUDEBUG, "Inside Invalidate\n");
+    //declare Vars
+    int currentIndex;
+    LRUReplData* dataBlock = std::static_pointer_cast<LRUReplData>(replacement_data);
+    
+    //Get current Index
+    currentIndex = dataBlock->index;
+    
+    //Move block to next position. Order is important here
+    cacheBlocks.erase(cacheBlocks.begin() + currentIndex);
+    cacheBlocks.push_back(dataBlock);
+
+    //Updating Index
+    for(int i = currentIndex; i< cacheBlocks.size(); i++){
+        cacheBlocks[i]->index = i;
+    }
+    DPRINTF(LRUDEBUG, "Exiting Invalidate\n");
 }
 
 void
-LRURP::touch(const std::shared_ptr<ReplacementData>& replacement_data) const
+LRUIPV::touch(const std::shared_ptr<ReplacementData>& replacement_data) const
 {
 	 DPRINTF(LRUDEBUG, "Inside touch\n");
-    // Update last touch timestamp
-    std::static_pointer_cast<LRUReplData>(
-        replacement_data)->lastTouchTick = curTick();
-    	 DPRINTF(LRUDEBUG, "Exiting touch\n");
+    //declare Vars
+    int currentIndex, targetIndex;
+    LRUReplData* dataBlock = std::static_pointer_cast<LRUReplData>(replacement_data);
+    
+    //Get current/target Index
+    currentIndex = dataBlock->index;
+    targetIndex = currentIndex<16 ? IPV[currentIndex] : currentIndex; 
+
+    //Move block to next position. Order is important here
+    cacheBlocks.erase(cacheBlocks.begin() + currentIndex);
+    cacheBlocks.emplace(cacheBlocks.begin()+currentIndex, dataBlock);
+
+    //Updating Index
+    for(int i = targetIndex; i<= currentIndex; i++){
+        cacheBlocks[i]->index = i;
+    }
+    DPRINTF(LRUDEBUG, "Exiting touch\n");
 }
 
 void
-LRURP::reset(const std::shared_ptr<ReplacementData>& replacement_data) const
+LRUIPV::reset(const std::shared_ptr<ReplacementData>& replacement_data) const
 {
 	 DPRINTF(LRUDEBUG, "Inside reset\n");
     // Set last touch timestamp
-    std::static_pointer_cast<LRUReplData>(
-        replacement_data)->lastTouchTick = curTick();
-    	 DPRINTF(LRUDEBUG, "Exiting reset\n");
+    int targetIndex = 11;
+    LRUReplData* dataBlock = std::static_pointer_cast<LRUReplData>(replacement_data);
+    
+    //Move block to position. 
+    cacheBlocks.emplace(cacheBlocks.begin()+currentIndex, dataBlock);
+
+    //Updating Index
+    for(int i = targetIndex; i<= cacheBlocks.size(); i++){
+        cacheBlocks[i]->index = i;
+    }
+    DPRINTF(LRUDEBUG, "Exiting reset\n");
 }
 
 ReplaceableEntry*
-LRURP::getVictim(const ReplacementCandidates& candidates) const
+LRUIPV::getVictim(const ReplacementCandidates& candidates) const
 {
     DPRINTF(LRUDEBUG, "Inside getVictim\n"); 
     // There must be at least one replacement candidate
     assert(candidates.size() > 0);
+    assert(cacheBlocks.size()>15);
 
     // Visit all candidates to find victim
     ReplaceableEntry* victim = candidates[0];
     for (const auto& candidate : candidates) {
         // Update victim entry if necessary
         if (std::static_pointer_cast<LRUReplData>(
-                    candidate->replacementData)->lastTouchTick <
+                    candidate->replacementData)->index >
                 std::static_pointer_cast<LRUReplData>(
-                    victim->replacementData)->lastTouchTick) {
+                    victim->replacementData)->index) {
             victim = candidate;
         }
     }
 
-     DPRINTF(LRUDEBUG, "Exiting getVictim\n");
+    //Remove from cache blocks
+    int index = std::static_pointer_cast<LRUReplData>(
+                    victim->replacementData)->index;
+
+    cacheBlocks.erase(cacheBlocks.begin()+index);
+
+    for(int i=index; i< cacheBlocks.size(); i++){
+        cacheBlocks[i]->index = i;
+    }
+
+    DPRINTF(LRUDEBUG, "Exiting getVictim\n");
     return victim;
 }
 
 std::shared_ptr<ReplacementData>
-LRURP::instantiateEntry()
+LRUIPV::instantiateEntry()
 {
     return std::shared_ptr<ReplacementData>(new LRUReplData());
 }
 
-LRURP*
-LRURPParams::create()
+LRUIPV*
+LRUIPVParams::create()
 {
-    return new LRURP(this);
+    return new LRUIPV(this);
 }
